@@ -19,10 +19,10 @@ if(WITH_DEBUG_SYMBOLS)
     set(DEBUG_SYMBOL "-g")
 endif()
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 include(FindThreads)
-include(FindProtobuf)
+#include(FindProtobuf)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # require at least gcc 4.8
@@ -66,11 +66,16 @@ if(LEVELDB_WITH_SNAPPY)
     find_library(SNAPPY_LIB NAMES snappy)
 endif()
 
-find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
-find_library(BRPC_LIB NAMES libbrpc.a brpc)
+message("BRPC_INCLUDE_PATH: ${BRPC_INCLUDE_PATH}")
+message("BRPC_LIB: ${BRPC_LIB}")
+#find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
+#find_library(BRPC_LIB NAMES libbrpc.a brpc)
 if ((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+#if ((NOT INCUBATOR_BRPC_INCLUDE_DIR) OR (NOT INCUBATOR_BRPC_LIBRARY))
     message(FATAL_ERROR "Fail to find brpc")
 endif()
+message("PROTOBUF_PROTOC_EXECUTABLE: ${PROTOBUF_PROTOC_EXECUTABLE}")
+SET(PROTOBUF_PROTOC_EXECUTABLE /home/ldy/project/mobiusdb/mysql-8.0.30/bld-debug/runtime_output_directory/protoc)
 
 if (NOT PROTOBUF_PROTOC_EXECUTABLE)
     get_filename_component(PROTO_LIB_DIR ${PROTOBUF_LIBRARY} DIRECTORY)
@@ -95,10 +100,10 @@ include_directories(
 
 if(BRPC_WITH_GLOG)
     set(DYNAMIC_LIB
-        ${BRPC_LIB}
+        ${BRPC_LIB_STATIC}
         ${GFLAGS_LIB}
         ${GLOG_LIB}
-        ${PROTOBUF_LIBRARY}
+        ${PROTOBUF_LIBRARIES_SHARED}
         ${LEVELDB_LIB}
         ${CMAKE_THREAD_LIBS_INIT}
         ${OPENSSL_LIBRARIES}
@@ -108,9 +113,9 @@ if(BRPC_WITH_GLOG)
         )
 else()
     set(DYNAMIC_LIB
-        ${BRPC_LIB}
+        ${BRPC_LIB_STATIC}
         ${GFLAGS_LIB}
-        ${PROTOBUF_LIBRARY}
+        ${PROTOBUF_LIBRARIES_SHARED}
         ${LEVELDB_LIB}
         ${CMAKE_THREAD_LIBS_INIT}
         ${OPENSSL_LIBRARIES}
@@ -146,11 +151,13 @@ else()
 endif()
 
 # for *.so
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
+#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BRAFT_LIB_DIR})
 # for *.a
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
+#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BRAFT_LIB_DIR})
 
-file(GLOB BRAFT_PROTOS "${CMAKE_SOURCE_DIR}/src/braft/*.proto")
+file(GLOB BRAFT_PROTOS "${CMAKE_CURRENT_SOURCE_DIR}/src/braft/*.proto")
 foreach(PROTO ${BRAFT_PROTOS})
     get_filename_component(PROTO_WE ${PROTO} NAME_WE)
     list(APPEND PROTO_SRCS "${CMAKE_CURRENT_BINARY_DIR}/braft/${PROTO_WE}.pb.cc")
@@ -158,8 +165,8 @@ foreach(PROTO ${BRAFT_PROTOS})
         COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} ${PROTO_FLAGS}
         --cpp_out=${CMAKE_CURRENT_BINARY_DIR}
         --proto_path=${PROTOBUF_INCLUDE_DIR}
-        --proto_path=${CMAKE_SOURCE_DIR}/src
-        --proto_path=${CMAKE_SOURCE_DIR}/src/braft/ ${PROTO}
+        --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/src
+        --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/src/braft/ ${PROTO}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         ERROR_VARIABLE PROTO_ERROR
         RESULT_VARIABLE PROTO_RESULT
@@ -170,14 +177,15 @@ foreach(PROTO ${BRAFT_PROTOS})
     endif()
 endforeach()
 
-file(GLOB_RECURSE BRAFT_SOURCES "${CMAKE_SOURCE_DIR}/src/braft/*.cpp")
+#file(GLOB_RECURSE BRAFT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/braft/*.cpp")
+file(GLOB_RECURSE BRAFT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/braft/*.cpp")
 set(SOURCES
     ${BRAFT_SOURCES}
     ${PROTO_SRCS}
     )
 
 include_directories(
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -206,7 +214,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 set(CMAKE_CPP_FLAGS "${DEFINE_CLOCK_GETTIME} -DBRPC_WITH_GLOG=${WITH_GLOG_VAL} -DGFLAGS_NS=${GFLAGS_NS}")
-set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -DBTHREAD_USE_FAST_PTHREAD_MUTEX -D__const__= -D_GNU_SOURCE -DUSE_SYMBOLIZE -DNO_TCMALLOC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -DBRAFT_REVISION=\\\"${BRAFT_REVISION}\\\" -D__STRICT_ANSI__")
+set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -DBTHREAD_USE_FAST_PTHREAD_MUTEX -D__const__=__unused__ -D_GNU_SOURCE -DUSE_SYMBOLIZE -DNO_TCMALLOC -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -DBRAFT_REVISION=\\\"${BRAFT_REVISION}\\\" -D__STRICT_ANSI__")
 set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} ${DEBUG_SYMBOL}")
 set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -msse4 -msse4.2")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CPP_FLAGS} -O2 -pipe -Wall -W -fPIC -fstrict-aliasing -Wno-invalid-offsetof -Wno-unused-parameter -Wno-reserved-user-defined-literal -fno-omit-frame-pointer")
@@ -227,7 +235,7 @@ add_subdirectory(src)
 if(BUILD_UNIT_TESTS)
     add_subdirectory(test)
 endif()
-add_subdirectory(tools)
+#add_subdirectory(tools)
 
 file(COPY ${CMAKE_CURRENT_BINARY_DIR}/braft/
         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/output/include/braft/
@@ -235,7 +243,7 @@ file(COPY ${CMAKE_CURRENT_BINARY_DIR}/braft/
         PATTERN "*.h"
         PATTERN "*.hpp"
         )
-file(COPY ${CMAKE_SOURCE_DIR}/src/
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/
         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/output/include/
         FILES_MATCHING
         PATTERN "*.h"
